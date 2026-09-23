@@ -7,7 +7,6 @@ if _G.CharleneHooLog then return _G.CharleneHooLog end
 ---@field Level integer
 ---@field Fold boolean
 ---@field MaxTable integer
----@field Flush fun()
 ---@field Trace fun(...: any)
 ---@field Debug fun(...: any)
 ---@field Info fun(...: any)
@@ -236,8 +235,6 @@ local function flushPending()
     pending = nil
     emitLine(currentPending.Color, currentPending.Head, currentPending.Text, currentPending.Count)
 end
-
-log.Flush = flushPending
 
 -- ============================================================
 -- 日志写入公共逻辑
