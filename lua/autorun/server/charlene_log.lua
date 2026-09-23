@@ -7,7 +7,6 @@ if _G.CharleneHooLog then return _G.CharleneHooLog end
 ---@field Level integer
 ---@field Fold boolean
 ---@field MaxTable integer
----@field SetLevel fun(level: integer|string)
 ---@field Flush fun()
 ---@field Trace fun(...: any)
 ---@field Debug fun(...: any)
@@ -95,7 +94,7 @@ end
 ---@return boolean
 local function hasToString(value)
     local mt = getmetatable(value)
-    return mt and mt.__tostring ~= nil
+    return type(mt) == "table" and type(mt.__tostring) == "function"
 end
 
 ---@type fun(value: any): string
@@ -109,7 +108,7 @@ local function briefElement(value)
     return formatValue(value)
 end
 
-formatValue = function(value)
+formatValue = function (value)
     local valueType = type(value)
     if valueType == "Vector" then
         return string.format("Vector(%s, %s, %s)",
@@ -155,12 +154,14 @@ end
 
 ---@param time number
 ---@return string
-local function formatWallTime(time)
-    local seconds = math.floor(time)
-    local milliseconds = math.floor((time - seconds) * 1000)
-    local dateInfo = os.date("*t", seconds)
+local function formatSysTime(time)
+    local totalMilliseconds = math.floor(time * 1000)
+    local totalSeconds = math.floor(totalMilliseconds / 1000)
+    local hours = math.floor(totalSeconds / 3600) % 24
+    local minutes = math.floor(totalSeconds / 60) % 60
+    local seconds = totalSeconds % 60
     return string.format("%02d:%02d:%02d.%03d",
-        dateInfo.hour, dateInfo.min, dateInfo.sec, milliseconds)
+        hours, minutes, seconds, totalMilliseconds % 1000)
 end
 
 ---@param time number
@@ -260,7 +261,7 @@ local function logAt(level, ...)
 
     local source, line = findCaller()
     local head = string.format("[%s][%d][%s][%s][%s:%d]",
-        formatWallTime(SysTime()),
+        formatSysTime(SysTime()),
         engine.TickCount() % 10000,
         formatElapsedTime(CurTime()),
         formatLevelName(level),
@@ -290,30 +291,11 @@ end
 -- 展平各级别函数
 -- ============================================================
 
-log.Trace = function(...) logAt(Level.TRACE, ...) end
-log.Debug = function(...) logAt(Level.DEBUG, ...) end
-log.Info = function(...) logAt(Level.INFO, ...) end
-log.Warn = function(...) logAt(Level.WARN, ...) end
-log.Error = function(...) logAt(Level.ERROR, ...) end
-
--- ============================================================
--- 级别设置 (允许外部传字符串)
--- ============================================================
-
----@param level integer|string
-log.SetLevel = function(level)
-    if type(level) == "number" then
-        log.Level = level
-        return
-    end
-    for value, name in pairs(levelName) do
-        if name == level then
-            log.Level = value
-            return
-        end
-    end
-    error("unknown log level: " .. tostring(level))
-end
+log.Trace = function (...) logAt(Level.TRACE, ...) end
+log.Debug = function (...) logAt(Level.DEBUG, ...) end
+log.Info = function (...) logAt(Level.INFO, ...) end
+log.Warn = function (...) logAt(Level.WARN, ...) end
+log.Error = function (...) logAt(Level.ERROR, ...) end
 
 -- 定时 flush, 让折叠计数能看到
 timer.Create("CharleneHooLogAutoSave", 1.5, 0, flushPending)
