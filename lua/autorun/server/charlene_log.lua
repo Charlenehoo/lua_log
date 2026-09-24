@@ -100,14 +100,20 @@ end
 
 formatValue = function (value)
     local valueType = type(value)
-    if valueType == "Vector" then
-        return string.format("Vector(%s, %s, %s)",
-            formatNumber(value.x), formatNumber(value.y), formatNumber(value.z))
+
+    -- GMod 的 Vector / Angle 都是 userdata，须用 isvector / isangle 判定
+    if valueType == "userdata" then
+        if isvector(value) then
+            return string.format("Vector(%s, %s, %s)",
+                formatNumber(value.x), formatNumber(value.y), formatNumber(value.z))
+        end
+        if isangle(value) then
+            return string.format("Angle(%s, %s, %s)",
+                formatNumber(value.p), formatNumber(value.y), formatNumber(value.r))
+        end
+        return tostring(value)
     end
-    if valueType == "Angle" then
-        return string.format("Angle(%s, %s, %s)",
-            formatNumber(value.p), formatNumber(value.y), formatNumber(value.r))
-    end
+
     if valueType == "function" then return "<function>" end
     if valueType ~= "table" then return tostring(value) end
     if hasToString(value) then return tostring(value) end
