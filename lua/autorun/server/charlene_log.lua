@@ -23,13 +23,18 @@ local log = {}
 -- 顺序不可乱动，log.Level 直接与索引比较
 -- ============================================================
 
----@type { Name: string, Color: Color, Label: string }[]
+---@class LevelDef
+---@field Name string
+---@field Color Color
+---@field Label string
+
+---@type LevelDef[]
 local levelDefs = {
-    { Name = "Trace", Color = Color(140, 140, 140) }, -- 1
-    { Name = "Debug", Color = Color(100, 200, 255) }, -- 2
-    { Name = "Info",  Color = Color(200, 255, 200) }, -- 3
-    { Name = "Warn",  Color = Color(255, 220, 100) }, -- 4
-    { Name = "Error", Color = Color(255, 100, 100) }, -- 5
+    { Name = "Trace", Color = Color(140, 140, 140), Label = "" },  -- 1
+    { Name = "Debug", Color = Color(100, 200, 255), Label = "" },  -- 2
+    { Name = "Info",  Color = Color(200, 255, 200), Label = "" },  -- 3
+    { Name = "Warn",  Color = Color(255, 220, 100), Label = "" },  -- 4
+    { Name = "Error", Color = Color(255, 100, 100), Label = "" },  -- 5
 }
 
 -- 第一趟：大写名暂存到 Label，同时求最大宽度
