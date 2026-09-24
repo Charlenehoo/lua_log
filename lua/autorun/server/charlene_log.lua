@@ -4,10 +4,10 @@ if _G._CharleneHooLog then return _G._CharleneHooLog end
 
 ---@class Log
 ---@field OutFile string|nil
----@field Level integer
+---@field CurrentLevel integer
 ---@field Fold boolean
 ---@field MaxTable integer
----@field Levels table<string, integer>
+---@field Level table<string, integer>
 ---@field Trace fun(...: any)
 ---@field Debug fun(...: any)
 ---@field Info fun(...: any)
@@ -19,35 +19,33 @@ local log = {}
 -- 级别定义表：索引即级别，顺序即语义
 --   Name  - 驼峰名，用于动态挂载 log.Trace / log.Debug / ...
 --   Color - 控制台颜色
---   Label - 预计算的对齐后显示名（控制台输出用）
--- 顺序不可乱动，log.Level 直接与索引比较
+--   Label - 先暂存大写名，第二趟改写为对齐后显示名
+-- 顺序不可乱动，log.CurrentLevel 直接与索引比较
 -- ============================================================
 
----@class LevelDef
----@field Name string
----@field Color Color
----@field Label string
-
----@type LevelDef[]
+---@type { Name: string, Color: Color, Label: string }[]
 local levelDefs = {
-    { Name = "Trace", Color = Color(140, 140, 140), Label = "" },  -- 1
-    { Name = "Debug", Color = Color(100, 200, 255), Label = "" },  -- 2
-    { Name = "Info",  Color = Color(200, 255, 200), Label = "" },  -- 3
-    { Name = "Warn",  Color = Color(255, 220, 100), Label = "" },  -- 4
-    { Name = "Error", Color = Color(255, 100, 100), Label = "" },  -- 5
+    { Name = "Trace", Color = Color(140, 140, 140) }, -- 1
+    { Name = "Debug", Color = Color(100, 200, 255) }, -- 2
+    { Name = "Info",  Color = Color(200, 255, 200) }, -- 3
+    { Name = "Warn",  Color = Color(255, 220, 100) }, -- 4
+    { Name = "Error", Color = Color(255, 100, 100) }, -- 5
 }
 
--- 第一趟：大写名暂存到 Label，同时求最大宽度
+-- 第一趟：大写名 → Label，派生枚举 log.Level，同时求最大宽度
+---@type table<string, integer>
+log.Level = {}
 local maxNameWidth = 0
 for level = 1, #levelDefs do
     local def = levelDefs[level]
-    def.Label = def.Name:upper()
+    def.Label = def.Name:upper() -- 暂存大写名
+    log.Level[def.Label] = level -- 枚举字段 UPPER_CASE
     if #def.Label > maxNameWidth then
         maxNameWidth = #def.Label
     end
 end
 
--- 第二趟：原地左填充到统一宽度
+-- 第二趟：把 Label 原地改写为对齐后的显示名
 for level = 1, #levelDefs do
     local def = levelDefs[level]
     def.Label = string.rep(" ", maxNameWidth - #def.Label) .. def.Label
@@ -57,20 +55,14 @@ end
 -- 配置
 -- ============================================================
 
-log.Level = 3     -- 默认 Info（= levelDefs[3]）；也可写 log.Level = log.Levels.Info
-log.OutFile = nil -- nil = 不写文件; 相对 data/, 自动补 .txt
-log.Fold = true   -- 连续相同折叠
-log.MaxTable = 3  -- table 显示前几项
-
--- 从 levelDefs 反向生成 名字 → 索引，避免手写第二份常量
-log.Levels = {}
-for level = 1, #levelDefs do
-    log.Levels[levelDefs[level].Name] = level
-end
+log.CurrentLevel = log.Level.INFO -- 默认 Info
+log.OutFile = nil                 -- nil = 不写文件; 相对 data/, 自动补 .txt
+log.Fold = true                   -- 连续相同折叠
+log.MaxTable = 3                  -- table 显示前几项
 
 ---@return integer
 local function getCurrentLevel()
-    return log.Level or log.Levels.Info
+    return log.CurrentLevel or log.Level.INFO
 end
 
 -- ============================================================
