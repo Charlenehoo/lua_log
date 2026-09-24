@@ -1,12 +1,13 @@
 -- log.lua
 
-if _G.CharleneHooLog then return _G.CharleneHooLog end
+if _G._CharleneHooLog then return _G._CharleneHooLog end
 
 ---@class Log
 ---@field OutFile string|nil
 ---@field Level integer
 ---@field Fold boolean
 ---@field MaxTable integer
+---@field Levels table<string, integer>
 ---@field Trace fun(...: any)
 ---@field Debug fun(...: any)
 ---@field Info fun(...: any)
@@ -15,65 +16,56 @@ if _G.CharleneHooLog then return _G.CharleneHooLog end
 local log = {}
 
 -- ============================================================
--- 级别枚举
+-- 级别定义表：索引即级别，顺序即语义
+--   Name  - 驼峰名，用于动态挂载 log.Trace / log.Debug / ...
+--   Color - 控制台颜色
+--   Label - 预计算的对齐后显示名（控制台输出用）
+-- 顺序不可乱动，log.Level 直接与索引比较
 -- ============================================================
 
-local Level = {
-    TRACE = 1,
-    DEBUG = 2,
-    INFO  = 3,
-    WARN  = 4,
-    ERROR = 5,
+---@type { Name: string, Color: Color, Label: string }[]
+local levelDefs = {
+    { Name = "Trace", Color = Color(140, 140, 140) }, -- 1
+    { Name = "Debug", Color = Color(100, 200, 255) }, -- 2
+    { Name = "Info",  Color = Color(200, 255, 200) }, -- 3
+    { Name = "Warn",  Color = Color(255, 220, 100) }, -- 4
+    { Name = "Error", Color = Color(255, 100, 100) }, -- 5
 }
+
+-- 第一趟：大写名暂存到 Label，同时求最大宽度
+local maxNameWidth = 0
+for level = 1, #levelDefs do
+    local def = levelDefs[level]
+    def.Label = def.Name:upper()
+    if #def.Label > maxNameWidth then
+        maxNameWidth = #def.Label
+    end
+end
+
+-- 第二趟：原地左填充到统一宽度
+for level = 1, #levelDefs do
+    local def = levelDefs[level]
+    def.Label = string.rep(" ", maxNameWidth - #def.Label) .. def.Label
+end
 
 -- ============================================================
 -- 配置
 -- ============================================================
 
-log.Level = Level.INFO
+log.Level = 3     -- 默认 Info（= levelDefs[3]）；也可写 log.Level = log.Levels.Info
 log.OutFile = nil -- nil = 不写文件; 相对 data/, 自动补 .txt
 log.Fold = true   -- 连续相同折叠
 log.MaxTable = 3  -- table 显示前几项
 
----@type table<integer, string>
-local levelName = {
-    [Level.TRACE] = "trace",
-    [Level.DEBUG] = "debug",
-    [Level.INFO]  = "info",
-    [Level.WARN]  = "warn",
-    [Level.ERROR] = "error",
-}
-
----@type table<integer, Color>
-local levelColor = {
-    [Level.TRACE] = Color(140, 140, 140),
-    [Level.DEBUG] = Color(100, 200, 255),
-    [Level.INFO]  = Color(200, 255, 200),
-    [Level.WARN]  = Color(255, 220, 100),
-    [Level.ERROR] = Color(255, 100, 100),
-}
-
-local LEVEL_NAME_WIDTH = 0
-for _, name in pairs(levelName) do
-    if #name > LEVEL_NAME_WIDTH then
-        LEVEL_NAME_WIDTH = #name
-    end
-end
-
----@param level integer
----@return string
-local function formatLevelName(level)
-    local name = (levelName[level] or "?"):upper()
-    local pad = LEVEL_NAME_WIDTH - #name
-    if pad > 0 then
-        return string.rep(" ", pad) .. name
-    end
-    return name
+-- 从 levelDefs 反向生成 名字 → 索引，避免手写第二份常量
+log.Levels = {}
+for level = 1, #levelDefs do
+    log.Levels[levelDefs[level].Name] = level
 end
 
 ---@return integer
 local function getCurrentLevel()
-    return log.Level or Level.INFO
+    return log.Level or log.Levels.Info
 end
 
 -- ============================================================
@@ -148,29 +140,20 @@ formatValue = function (value)
 end
 
 -- ============================================================
--- 时间
+-- 时间：统一格式 MM:SS.mmm
+--   SysTime 与 CurTime 共用，区别仅在时间源
+--   小时位模掉（debug 窗口 < 1 小时，回绕无歧义）
 -- ============================================================
 
----@param time number
+---@param seconds number
 ---@return string
-local function formatSysTime(time)
-    local totalMilliseconds = math.floor(time * 1000)
+local function formatTime(seconds)
+    local totalMilliseconds = math.floor(seconds * 1000)
     local totalSeconds = math.floor(totalMilliseconds / 1000)
-    local hours = math.floor(totalSeconds / 3600) % 24
-    local minutes = math.floor(totalSeconds / 60) % 60
-    local seconds = totalSeconds % 60
-    return string.format("%02d:%02d:%02d.%03d",
-        hours, minutes, seconds, totalMilliseconds % 1000)
-end
-
----@param time number
----@return string
-local function formatElapsedTime(time)
-    local totalMilliseconds = math.floor(time * 1000)
     return string.format("%02d:%02d.%03d",
-        math.floor(totalMilliseconds / 60000) % 60,
-        math.floor(totalMilliseconds / 1000) % 60,
-        totalMilliseconds % 1000)
+        math.floor(totalSeconds / 60) % 60, -- 分钟：模 60 → 2 位
+        totalSeconds % 60,                  -- 秒：  模 60 → 2 位
+        totalMilliseconds % 1000)           -- 毫秒：模 1000 → 3 位
 end
 
 -- ============================================================
@@ -245,8 +228,9 @@ end
 local function logAt(level, ...)
     if level < getCurrentLevel() then return end
 
-    local color = levelColor[level]
-    if not color then return end
+    local def = levelDefs[level]
+    if not def then return end
+    local color = def.Color
 
     local count = select("#", ...)
     local parts = {}
@@ -257,11 +241,11 @@ local function logAt(level, ...)
     local text = table.concat(parts, " ")
 
     local source, line = findCaller()
-    local head = string.format("[%s][%d][%s][%s][%s:%d]",
-        formatSysTime(SysTime()),
-        engine.TickCount() % 10000,
-        formatElapsedTime(CurTime()),
-        formatLevelName(level),
+    local head = string.format("[%s][%05d][%s][%s][%s:%d]",
+        formatTime(SysTime()),
+        engine.TickCount() % 100000, -- 66 tick/s 下覆盖 ≈ 25 分钟
+        formatTime(CurTime()),
+        def.Label,
         source, line)
 
     if not log.Fold then
@@ -269,7 +253,8 @@ local function logAt(level, ...)
         return
     end
 
-    local signature = levelName[level] .. "\0" .. source .. ":" .. line .. "\0" .. text
+    -- 用 def.Name（驼峰）作签名，天然按级别隔离
+    local signature = def.Name .. "\0" .. source .. ":" .. line .. "\0" .. text
     if pending and pending.Signature == signature then
         pending.Count = pending.Count + 1
     else
@@ -285,17 +270,16 @@ local function logAt(level, ...)
 end
 
 -- ============================================================
--- 展平各级别函数
+-- 动态挂载各级别函数：log.Trace / log.Debug / log.Info / log.Warn / log.Error
 -- ============================================================
 
-log.Trace = function (...) logAt(Level.TRACE, ...) end
-log.Debug = function (...) logAt(Level.DEBUG, ...) end
-log.Info = function (...) logAt(Level.INFO, ...) end
-log.Warn = function (...) logAt(Level.WARN, ...) end
-log.Error = function (...) logAt(Level.ERROR, ...) end
+for level = 1, #levelDefs do
+    local def = levelDefs[level]
+    log[def.Name] = function (...) logAt(level, ...) end
+end
 
 -- 定时 flush, 让折叠计数能看到
 timer.Create("CharleneHooLogAutoSave", 1.5, 0, flushPending)
 
-_G.CharleneHooLog = log
+_G._CharleneHooLog = log
 return log
