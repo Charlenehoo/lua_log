@@ -32,23 +32,25 @@ local levelDefs = {
     { Name = "Error", Color = Color(255, 100, 100) }, -- 5
 }
 
--- 第一趟：大写名 → Label，派生枚举 log.Level，同时求最大宽度
 ---@type table<string, integer>
 log.Level = {}
-local maxNameWidth = 0
-for level = 1, #levelDefs do
-    local def = levelDefs[level]
-    def.Label = def.Name:upper() -- 暂存大写名
-    log.Level[def.Label] = level -- 枚举字段 UPPER_CASE
-    if #def.Label > maxNameWidth then
-        maxNameWidth = #def.Label
+do
+    -- 第一趟：大写名 → Label，派生枚举 log.Level，同时求最大宽度
+    local maxNameWidth = 0
+    for level = 1, #levelDefs do
+        local def = levelDefs[level]
+        def.Label = def.Name:upper() -- 暂存大写名
+        log.Level[def.Label] = level -- 枚举字段 UPPER_CASE
+        if #def.Label > maxNameWidth then
+            maxNameWidth = #def.Label
+        end
     end
-end
 
--- 第二趟：把 Label 原地改写为对齐后的显示名
-for level = 1, #levelDefs do
-    local def = levelDefs[level]
-    def.Label = string.rep(" ", maxNameWidth - #def.Label) .. def.Label
+    -- 第二趟：把 Label 原地改写为对齐后的显示名
+    for level = 1, #levelDefs do
+        local def = levelDefs[level]
+        def.Label = string.rep(" ", maxNameWidth - #def.Label) .. def.Label
+    end
 end
 
 -- ============================================================
