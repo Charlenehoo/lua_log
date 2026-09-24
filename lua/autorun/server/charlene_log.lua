@@ -120,7 +120,7 @@ formatValue = function (value)
 
     local itemCount = 0
     for _ in pairs(value) do itemCount = itemCount + 1 end
-    if itemCount == 0 then return "table[0]" end
+    if itemCount == 0 then return "{} (n=0)" end
 
     local parts = {}
     local arrayLength = #value
